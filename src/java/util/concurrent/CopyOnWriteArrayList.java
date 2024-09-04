@@ -431,6 +431,14 @@ public class CopyOnWriteArrayList<E>
      * @param e element to be appended to this list
      * @return {@code true} (as specified by {@link Collection#add})
      */
+    /**
+     * 在数组中追加入元素时
+     * 1、进行加锁
+     * 2、获取当前数组并拷贝一个容量加一的副本，将新元素加入数组末尾
+     * 3、将副本装入数组
+     * @param e
+     * @return
+     */
     public boolean add(E e) {
         final ReentrantLock lock = this.lock;
         lock.lock();
@@ -453,25 +461,39 @@ public class CopyOnWriteArrayList<E>
      *
      * @throws IndexOutOfBoundsException {@inheritDoc}
      */
+    /**
+     * 在数组任意位置插入元素
+     *
+     * @param index
+     * @param element
+     */
     public void add(int index, E element) {
         final ReentrantLock lock = this.lock;
         lock.lock();
         try {
+            // 获取旧的数组
             Object[] elements = getArray();
             int len = elements.length;
+            // 判断 插入元素位置是否合规
             if (index > len || index < 0)
                 throw new IndexOutOfBoundsException("Index: "+index+
                                                     ", Size: "+len);
             Object[] newElements;
+            // 计算要向后移动的元素数
             int numMoved = len - index;
             if (numMoved == 0)
+                // 末尾追加 等同于 add(E e)
                 newElements = Arrays.copyOf(elements, len + 1);
             else {
+                // 初始化一个新的数组对象 长度 len + 1
                 newElements = new Object[len + 1];
+                // 将原数组index前元素放入新数组  起始位置0
                 System.arraycopy(elements, 0, newElements, 0, index);
+                // 将原数组起始位置index后元素放入新数组 新数组位置从index+1 开始
                 System.arraycopy(elements, index, newElements, index + 1,
                                  numMoved);
             }
+            // index位置 插入元素
             newElements[index] = element;
             setArray(newElements);
         } finally {
@@ -499,6 +521,7 @@ public class CopyOnWriteArrayList<E>
             else {
                 Object[] newElements = new Object[len - 1];
                 System.arraycopy(elements, 0, newElements, 0, index);
+                // 拷贝数组位置 index + 1  -> index
                 System.arraycopy(elements, index + 1, newElements, index,
                                  numMoved);
                 setArray(newElements);
