@@ -160,6 +160,16 @@ import java.io.IOException;
  * @see     Hashtable
  * @since   1.4
  */
+
+/**
+ * LinkedHashMap在HashMap的基础上使用一个双链表维持有序的节点。
+ * 这个有序并不是通常意义上的大小关系，默认情况下使用的插入顺序，意味着新插入的节点被添加到双端链表的尾部，
+ * 而一旦使用了访问顺序，即accessOrder为true，那么在访问某一节点时，会将该节点移到双端链表的尾部。
+ * 正因为此特性，可以在LinkedHashMap中使用三个参数的构造方法并制定accessOrder为true将LinkedHashMap实现为LRU缓存，
+ * 这样经常访问的就会被移到链表的尾部，而越少访问的就在链表的头部。
+ * @param <K>
+ * @param <V>
+ */
 public class LinkedHashMap<K,V>
     extends HashMap<K,V>
     implements Map<K,V>
@@ -211,6 +221,8 @@ public class LinkedHashMap<K,V>
     /**
      * The iteration ordering method for this linked hash map: <tt>true</tt>
      * for access-order, <tt>false</tt> for insertion-order.
+     * 链表的迭代排序方法， true 按访问顺序 ，每次get元素的时候，都会去执行 afterNodeAccess 方法，这个方法会将元素重新插入到双向链表的结尾。
+     *                  false 按插入顺序（默认） 插入时什么顺序 迭代排序就什么顺序
      *
      * @serial
      */
@@ -294,31 +306,52 @@ public class LinkedHashMap<K,V>
             a.before = b;
     }
 
+    /**
+     * 每当put元素后，都会执行afterNodeInsertion方法，将超出容量的头结点删除
+     * @param evict
+     */
     void afterNodeInsertion(boolean evict) { // possibly remove eldest
         LinkedHashMap.Entry<K,V> first;
+        //根据条件判断是否移除最近最少使用的节点
         if (evict && (first = head) != null && removeEldestEntry(first)) {
             K key = first.key;
             removeNode(hash(key), key, null, false, true);
         }
     }
 
+    /**
+     * 当accessOrder为true 按访问顺序 ，每次get元素的时候，都会去执行 afterNodeAccess 方法，这个方法会将元素重新插入到双向链表的结尾。
+     * @param e
+     */
     void afterNodeAccess(Node<K,V> e) { // move node to last
+        // 用 last 表示插入 e 前的当前尾节点
+        // 插入 e 后 e 是尾节点, 所以也是表示 e 的前一个节点
         LinkedHashMap.Entry<K,V> last;
+        //如果是访问序，且当前节点并不是尾节点
+        //将该节点置为双向链表的尾部
         if (accessOrder && (last = tail) != e) {
+            // 结构为: b <=> p <=> a
             LinkedHashMap.Entry<K,V> p =
                 (LinkedHashMap.Entry<K,V>)e, b = p.before, a = p.after;
+            // p.after指向null 则结构变为 b <=> p <- a
             p.after = null;
+            // 如果b = null 则说明当前节点p为头节点 则将p加入尾部的话 头节点就变成了a
             if (b == null)
                 head = a;
             else
+                // p不是头节点 那么b指向a
                 b.after = a;
+            // a非空 a指向b
             if (a != null)
                 a.before = b;
             else
+                // a为空   b <=> p -> a 那么p就是尾节点， b 就是它的前一个节点, 符合 last 的定义
                 last = b;
+            // last为空 好了 可以理解为这个hash中就这一个元素 p 来组成头部
             if (last == null)
                 head = p;
             else {
+                // 否则插入链表尾部
                 p.before = last;
                 last.after = p;
             }
@@ -439,6 +472,7 @@ public class LinkedHashMap<K,V>
         Node<K,V> e;
         if ((e = getNode(hash(key), key)) == null)
             return null;
+        // 链表的迭代排序方法， true 按访问顺序 ，get元素的时候，都会去执行 afterNodeAccess 方法，这个方法会将元素重新插入到双向链表的结尾。
         if (accessOrder)
             afterNodeAccess(e);
         return e.value;
